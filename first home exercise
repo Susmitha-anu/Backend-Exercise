@@ -1,0 +1,51 @@
+import csv
+import xmltodict
+from Bio import Entrez
+
+
+def fetch_pubmed_ids(query, max_results=20):
+    handle = Entrez.esearch(db="pubmed", term=query, retmax=max_results)
+    record = Entrez.read(handle)
+    handle.close()
+    return record["IdList"]
+
+def fetch_pubmed_details(id_list):
+    ids = ",".join(id_list)
+    handle = Entrez.efetch(db="pubmed", id=ids, retmode="xml")
+    records = Entrez.read(handle)
+    handle.close()
+    return records
+
+def is_pharma_affiliation(affiliation):
+    keywords = ["pharma", "pharmaceutical", "biotech", "biosciences", "biotechnology"]
+    if affiliation:
+        return any(kw.lower() in affiliation.lower() for kw in keywords)
+    return False
+
+def extract_data(records):
+    data = []
+    for article in records['PubmedArticle']:
+        medline = article['MedlineCitation']
+        article_data = medline['Article']
+        pubmed_id = medline['PMID']
+        title = article_data.get('ArticleTitle', 'N/A')
+        pub_date = article_data['Journal']['JournalIssue']['PubDate']
+        publication_date = pub_date.get('Year', 'N/A')
+
+        non_academic_authors = []
+        company_affiliations = []
+        corresponding_email = "N/A"
+
+        if 'AuthorList' in article_data:
+            for author in article_data['AuthorList']:
+                if 'AffiliationInfo' in author:
+                    for aff in author['AffiliationInfo']:
+                        aff_text = aff.get('Affiliation', '')
+                        if is_pharma_affiliation(aff_text):
+                            non_academic_authors.append(f"{author.get('LastName', '')} {author.get('ForeName', '')}")
+                            company_affiliations.append(aff_text)
+                            if '@' in aff_text:
+                                corresponding_email = aff_text.split()[-1]
+
+        if non_academic_authors:
+            data
